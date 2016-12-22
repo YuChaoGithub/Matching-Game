@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Match Game</title>
+<style>
+canvas{
+	margin: 25px auto 0px auto;
+	border: black 1px solid;
+	display: block;
+	background-color: lightgray;
+}
+body{
+	background-color: lightblue;
+}
+h2{
+	text-align: center;
+	color: gray;
+	font-family: Comic;
+}
+</style>
+</head>
+<body>
+<h2>Try to match cards with the same number</h2>
+<script type="text/javascript">
+//constants
+var B_MARGIN   = 20;
+var B_WIDTH    = 50;
+var B_HEIGHT   = 70;
+var B_ROW      = 5;
+var B_COL      = 8;
+var B_COLOR    = "palegreen";
+var B_BORDER   = "black";
+var BACK_COLOR = "tomato";
+
+//variables
+var canvas = null;
+var ctx    = null;
+var board  = null;
+var deck   = null;
+var first_card = null;
+var second_card = null;
+var cards_left;
+var win = false;
+
+function play_game(){
+	set_up_canvas();
+	set_up_board();
+	draw();
+}
+
+function set_up_canvas(){
+	canvas = document.createElement('canvas');
+	document.body.appendChild(canvas);
+	ctx = canvas.getContext('2d');
+
+	//size
+	canvas.width  = B_COL*(B_MARGIN + B_WIDTH) + B_MARGIN;
+	canvas.height = B_ROW*(B_MARGIN + B_HEIGHT)+ B_MARGIN;
+
+	//listener
+	canvas.addEventListener('mousedown', mousedownListener);
+}
+
+function set_up_board(){
+	var max_num = B_ROW * B_COL / 2;
+	cards_left = B_ROW * B_COL;
+
+	//init a deck of ordered cards
+	var ordered_cards = [];
+	for (var i = 1; i <= max_num; i++){
+		ordered_cards.push(i);
+		ordered_cards.push(i);
+	}
+
+	//generate a deck of randomized cards
+	deck = [];
+	while (ordered_cards.length > 0){
+		var random_index = Math.floor(Math.random()*ordered_cards.length);
+		deck.push(ordered_cards[random_index]);
+		ordered_cards.splice(random_index,1);
+	}
+
+	//put into board
+	var deck_i = 0;
+	board = [];
+	for (var i = 0; i < B_ROW; i++){
+		board[i] = [];
+		for (var j = 0; j < B_COL; j++){
+			board[i].push({num: deck[deck_i], state: "backside"});
+			deck_i++;
+		}
+	}
+}
+
+function draw(){
+	//if win
+	if (win){
+		ctx.clearRect(0,0,canvas.width,canvas.height);
+		ctx.fillStyle = "black";
+		ctx.strokeText("You Win! Click to start a new round!", canvas.width/2, canvas.height/2);
+		return;
+	}
+
+	//set color and style
+	ctx.strokeStyle = B_BORDER;
+	ctx.font = "25px Comic Sans MS";
+	ctx.textAlign = "center";
+
+	//draw board
+	for (var i = 0; i < B_ROW; i++){
+		for (var j = 0; j < B_COL; j++){
+			if (board[i][j].state == "flipped"){
+				//number side
+				ctx.fillStyle = B_COLOR;
+				ctx.strokeRect(B_MARGIN + j*(B_MARGIN+B_WIDTH), B_MARGIN + i*(B_MARGIN+B_HEIGHT),B_WIDTH,B_HEIGHT);
+				ctx.fillRect(B_MARGIN + j*(B_MARGIN+B_WIDTH),B_MARGIN + i*(B_MARGIN+B_HEIGHT),B_WIDTH,B_HEIGHT);
+				ctx.fillStyle = "black";
+				ctx.fillText(""+board[i][j].num, B_MARGIN+j*(B_MARGIN+B_WIDTH)+B_WIDTH/2, B_MARGIN + i*(B_MARGIN+B_HEIGHT)+B_HEIGHT/2);
+			}else if (board[i][j].state == "backside"){
+				//back side
+				ctx.fillStyle = BACK_COLOR;
+				ctx.strokeRect(B_MARGIN + j*(B_MARGIN+B_WIDTH), B_MARGIN + i*(B_MARGIN+B_HEIGHT),B_WIDTH,B_HEIGHT);
+				ctx.fillRect(B_MARGIN + j*(B_MARGIN+B_WIDTH),B_MARGIN + i*(B_MARGIN+B_HEIGHT),B_WIDTH,B_HEIGHT);
+			}else{
+				ctx.clearRect(j*(B_MARGIN+B_WIDTH)+B_MARGIN/2,i*(B_MARGIN+B_HEIGHT)+B_MARGIN/2,B_WIDTH+B_MARGIN,B_HEIGHT+B_MARGIN);
+			}
+		}
+	}
+}
+
+function mousedownListener(event){
+	if (win){
+		restart();
+		return;
+	}
+	var rect = canvas.getBoundingClientRect();
+	var x = event.clientX - rect.left;
+	var y = event.clientY - rect.top;
+
+	//locate which card is clicked
+	var deck_num_obj = locate_card(x,y);
+
+	//did not click a card
+	if (deck_num_obj == null) return;
+
+	var row = deck_num_obj.row;
+	var col = deck_num_obj.col;
+
+	//check if the card is already removed
+	if (board[row][col].state == "removed") return;
+
+	//check if one or two of the cards are flipped
+	if (first_card == null){
+		board[row][col].state = "flipped";
+		first_card = board[row][col];
+	}else if (second_card == null){
+		//check if the two cards have the same number
+		if (board[row][col].num == first_card.num){
+			if (first_card == board[row][col]) return;  //if the same card is clicked
+			board[row][col].state = "removed";
+			first_card.state = "removed";
+			first_card = null;
+			cards_left -= 2;
+			if (cards_left == 0){
+				win = true;
+			}
+		}else{                     	//not the same
+			board[row][col].state = "flipped";
+			second_card = board[row][col];
+		}
+	}else{
+		first_card.state = "backside";
+		second_card.state = "backside";
+		board[row][col].state = "flipped";
+		first_card = board[row][col];
+		second_card = null;
+	}
+	draw();
+}
+
+function locate_card(x,y){
+	for (var i = 0; i < B_ROW; i++){
+		for (var j = 0; j < B_COL; j++){
+			if (x > B_MARGIN+j*(B_MARGIN+B_WIDTH)  && x < B_MARGIN+j*(B_MARGIN+B_WIDTH)+B_WIDTH && 
+				  y > B_MARGIN+i*(B_MARGIN+B_HEIGHT) && y < B_MARGIN+i*(B_MARGIN+B_HEIGHT)+B_HEIGHT){
+				return {row:i, col:j};
+			}
+		}
+	}
+	return null;
+}
+
+function restart(){
+	set_up_board();
+	ctx.clearRect(0,0,canvas.width,canvas.height); //clear the words
+	win = false;
+	first_card = null;
+	second_card = null;
+	draw();
+}
+
+play_game();
+</script>
+</body>
+</html>
